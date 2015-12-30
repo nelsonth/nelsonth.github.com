@@ -4,23 +4,30 @@ var Game = {
     engine: null,
     player: null,
 	ananas: null,
+	width: 80,
+	height: 30,
+	statusWidth: 15,
+	statusHeight: 26,
     
     init: function() {
-        this.display = new ROT.Display();
+        this.display = new ROT.Display({width:this.width, height:this.height});
         document.body.appendChild(this.display.getContainer());
         
         this._generateMap();
+
         
         var scheduler = new ROT.Scheduler.Simple();
         scheduler.add(this.player, true);
 		scheduler.add(this.pedro, true);
+
+		this._drawStatus();
 
         this.engine = new ROT.Engine(scheduler);
         this.engine.start();
     },
     
     _generateMap: function() {
-        var digger = new ROT.Map.Digger();
+        var digger = new ROT.Map.Digger(this.width, this.height-6); // taking off 6 lines for display
         var freeCells = [];
         
         var digCallback = function(x, y, value) {
@@ -38,6 +45,11 @@ var Game = {
 		this.player = this._createBeing(Player, freeCells);
 		this.pedro = this._createBeing(Pedro, freeCells);
     },
+
+	_drawStatus: function() {
+		//this.display.draw(this.statusWidth,this.statusHeight,"              ","#000","#000");
+		this.display.draw(this.statusWidth,this.statusHeight,this.player._hp);
+	},
     
     _generateBoxes: function(freeCells) {
         for (var i=0;i<10;i++) {
@@ -64,8 +76,10 @@ var Player = function(x, y) {
     this._x = x;
     this._y = y;
     this._draw();
+	this._hp = 9;
+	this._maxhp = 9;
 }
-    
+
 Player.prototype.act = function() {
     Game.engine.lock();
     window.addEventListener("keydown", this);
@@ -86,7 +100,7 @@ Player.prototype.handleEvent = function(e) {
     keyMap[89] = 7; // y
 
     var code = e.keyCode;
-	if (code == 188) {
+	if (code == 188) { // ,
 		this._checkBox();
 		return;
 	}
@@ -100,10 +114,15 @@ Player.prototype.handleEvent = function(e) {
     var newKey = newX + "," + newY;
     if (!(newKey in Game.map)) { return; }
 
-    Game.display.draw(this._x, this._y, Game.map[this._x+","+this._y]);
-    this._x = newX;
-    this._y = newY;
-    this._draw();
+	/* Check for Pedro */
+	if (newX == Game.pedro._x && newY == Game.pedro._y) {
+		Game.display.draw(Game.statusWidth, Game.statusHeight+1, "You attacked Pedro!");
+	} else {
+		Game.display.draw(this._x, this._y, Game.map[this._x+","+this._y]);
+		this._x = newX;
+		this._y = newY;
+		this._draw();
+	}
     window.removeEventListener("keydown", this);
     Game.engine.unlock();
 }
@@ -117,7 +136,7 @@ Player.prototype._checkBox = function() {
 	if (Game.map[key] != "*") {
 		alert("There is no box here yo");
 	} else if (key == Game.ananas) {
-		alert("You found the ananas! You win!");
+		alert("You found the prize! You win!");
 		Game.engine.lock();
 		window.removeEventListener("keydown", this);
 	} else {
@@ -152,8 +171,10 @@ Pedro.prototype.act = function() {
 	path.shift(); /* remove Pedro's position from the path list */
 
 	if (path.length == 1) {
-		Game.engine.lock();
-		alert("GAME OVER -- You were captured by Pedro!");
+		//Game.engine.lock();
+		Game.display.draw(Game.statusWidth, Game.statusHeight+1, "Pedro attacked you!");
+		Game.player._hp = Game.player._hp - 1;
+		Game._drawStatus();
 	} else {
 		x = path[0][0];
 		y = path[0][1];
