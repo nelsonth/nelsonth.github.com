@@ -1,9 +1,10 @@
 var Game = {
     display: null,
     map: {},
+	bots: [],
+	sheduler: null,
     engine: null,
     player: null,
-	ananas: null,
 	width: 80,
 	height: 30,
 	statusWidth: 15,
@@ -12,22 +13,22 @@ var Game = {
     init: function() {
         this.display = new ROT.Display({width:this.width, height:this.height});
         document.body.appendChild(this.display.getContainer());
+
+        this.scheduler = new ROT.Scheduler.Simple();
         
         this._generateMap();
 
-        
-        var scheduler = new ROT.Scheduler.Simple();
-        scheduler.add(this.player, true);
-		scheduler.add(this.pedro, true);
+        this.scheduler.add(this.player, true);
 
 		this._drawStatus();
 
-        this.engine = new ROT.Engine(scheduler);
+        this.engine = new ROT.Engine(this.scheduler);
         this.engine.start();
     },
     
     _generateMap: function() {
-        var digger = new ROT.Map.Digger(this.width, this.height-6); // taking off 6 lines for display
+		// taking off 6 lines for display
+        var digger = new ROT.Map.Digger(this.width, this.height-6); 
         var freeCells = [];
         
         var digCallback = function(x, y, value) {
@@ -39,19 +40,26 @@ var Game = {
         }
         digger.create(digCallback.bind(this));
         
-        this._generateBoxes(freeCells);
+        // this._generateBots(freeCells);
         this._drawWholeMap();
 
 		this.player = this._createBeing(Player, freeCells);
-		this.pedro = this._createBeing(Pedro, freeCells);
+		for (var i=0; i<10; i++) {
+			var b = this._createBeing(Lizard, freeCells);
+			this.scheduler.add(b, true);
+			this.bots.push(b);
+		}
     },
 
 	_drawStatus: function() {
-		//this.display.draw(this.statusWidth,this.statusHeight,"              ","#000","#000");
-		this.display.draw(this.statusWidth,this.statusHeight,this.player._hp);
+		this.display.draw(this.statusWidth,this.statusHeight,this.player.hp);
+		this.writeMessage(this.statusWidth,this.statusHeight,
+				"HP: "+this.player.hp+"/" + this.player.maxhp);
 	},
     
-    _generateBoxes: function(freeCells) {
+	
+	/*
+    _generateBots: function(freeCells) {
         for (var i=0;i<10;i++) {
             var index = Math.floor(ROT.RNG.getUniform() * freeCells.length);
             var key = freeCells.splice(index, 1)[0];
@@ -61,6 +69,7 @@ var Game = {
 			}
         }
     },
+	*/
     
     _drawWholeMap: function() {
         for (var key in this.map) {
@@ -69,15 +78,31 @@ var Game = {
             var y = parseInt(parts[1]);
             this.display.draw(x, y, this.map[key]);
         }
-    }
+    },
+
+	writeMessage: function(x,y,msg) {
+		for (var i=0; i < msg.length; ++i) {
+			this.display.draw(x+i,y,msg[i]);
+		}
+	},
+
+	damage: function(attacker, defender, dmg) {
+		this.writeMessage(this.statusWidth, this.statusHeight+1,
+			attacker.name + " dealt " + dmg + " damage to " + defender.name + ".");
+		defender.hp = defender.hp - dmg;
+		if (defender.hp <= 0) {
+			defender.die();
+		}
+	}
 };
 
 var Player = function(x, y) {
     this._x = x;
     this._y = y;
     this._draw();
-	this._hp = 9;
-	this._maxhp = 9;
+	this.hp = 9;
+	this.maxhp = 9;
+	this.name = "You";
 }
 
 Player.prototype.act = function() {
@@ -100,10 +125,12 @@ Player.prototype.handleEvent = function(e) {
     keyMap[89] = 7; // y
 
     var code = e.keyCode;
+	/*
 	if (code == 188) { // ,
 		this._checkBox();
 		return;
 	}
+	*/
     /* one of vi directions? */
     if (!(code in keyMap)) { return; }
 
@@ -114,10 +141,16 @@ Player.prototype.handleEvent = function(e) {
     var newKey = newX + "," + newY;
     if (!(newKey in Game.map)) { return; }
 
-	/* Check for Pedro */
-	if (newX == Game.pedro._x && newY == Game.pedro._y) {
-		Game.display.draw(Game.statusWidth, Game.statusHeight+1, "You attacked Pedro!");
-	} else {
+	/* Check for bots */
+	var attack = false;
+	for (var i=0; i < Game.bots.length; ++i) {
+		var bot = Game.bots[i];
+		if (newX == bot._x && newY == bot._y) {
+			Game.damage(this, bot, 1);
+			attack = true;
+		}
+	} 
+	if (!attack) {
 		Game.display.draw(this._x, this._y, Game.map[this._x+","+this._y]);
 		this._x = newX;
 		this._y = newY;
@@ -131,6 +164,7 @@ Player.prototype._draw = function() {
     Game.display.draw(this._x, this._y, "@", "#ff0");
 }    
 
+/*
 Player.prototype._checkBox = function() {
 	var key = this._x + "," + this._y;
 	if (Game.map[key] != "*") {
@@ -143,24 +177,35 @@ Player.prototype._checkBox = function() {
 		alert("This box is empty :(");
 	}
 }
+*/
 
-var Pedro = function(x, y) {
+Player.prototype.die = function() {
+	/* Player dies, game is over */
+	alert("You have died.  Game over.");
+	Game.engine.lock();
+	window.removeEventListener("keydown", this);
+}
+
+var Lizard = function(x, y) {
 	this._x = x;
 	this._y = y;
+	this.hp = 3;
+	this.maxhp = 3;
 	this._draw();
+	this.name = "Lizard";
 }
 
-Pedro.prototype._draw = function() {
-	Game.display.draw(this._x, this._y, "P", "red");
+Lizard.prototype._draw = function() {
+	Game.display.draw(this._x, this._y, "l", "cyan");
 }
 
-Pedro.prototype.act = function() {
+Lizard.prototype.act = function() {
 	var x = Game.player.getX();
 	var y = Game.player.getY();
 	var passableCallback = function(x, y) {
 		return (x+","+y in Game.map);
 	}
-	var astar = new ROT.Path.AStar(x, y, passableCallback, {topology:4});
+	var astar = new ROT.Path.AStar(x, y, passableCallback, {topology:8});
 
 	var path = [];
 	var pathCallback = function(x,y) {
@@ -168,12 +213,10 @@ Pedro.prototype.act = function() {
 	}
 	astar.compute(this._x, this._y, pathCallback);
 
-	path.shift(); /* remove Pedro's position from the path list */
+	path.shift(); /* remove lizard's position from the path list */
 
 	if (path.length == 1) {
-		//Game.engine.lock();
-		Game.display.draw(Game.statusWidth, Game.statusHeight+1, "Pedro attacked you!");
-		Game.player._hp = Game.player._hp - 1;
+		Game.damage(this, Game.player, 1);
 		Game._drawStatus();
 	} else {
 		x = path[0][0];
@@ -183,6 +226,17 @@ Pedro.prototype.act = function() {
 		this._y = y;
 		this._draw();
 	}
+}
+
+Lizard.prototype.die = function() {
+	/* remove from map, remove from scheduler */
+	Game.writeMessage(Game.statusWidth, Game.statusHeight+1,
+			"You killed the Lizard!");
+	var success = Game.scheduler.remove(this);
+	// console.log("removed lizard: " + success);
+	Game.display.draw(this._x, this._y, Game.map[this._x+","+this._y]);
+	/* remove lizard from bot list */
+	Game.bots.splice(Game.bots.indexOf(this),1);
 }
 
 Game._createBeing = function(what, freeCells) {
