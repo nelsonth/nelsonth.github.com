@@ -8,8 +8,9 @@ var Game = {
 	width: 80,
 	height: 30,
 	statusWidth: 15,
-	statusHeight: 26,
-    
+	statusHeight: 24,
+    msgHistory: [],
+
     init: function() {
         this.display = new ROT.Display({width:this.width, height:this.height});
         document.body.appendChild(this.display.getContainer());
@@ -20,7 +21,7 @@ var Game = {
 
         this.scheduler.add(this.player, true);
 
-		this._drawStatus();
+		this.drawStatus();
 
         this.engine = new ROT.Engine(this.scheduler);
         this.engine.start();
@@ -35,7 +36,7 @@ var Game = {
             if (value) { return; }
             
             var key = x+","+y;
-            this.map[key] = ".";
+            this.map[key] = ["."];
             freeCells.push(key);
         }
         digger.create(digCallback.bind(this));
@@ -47,47 +48,48 @@ var Game = {
 		for (var i=0; i<10; i++) {
 			var b = this._createBeing(Lizard, freeCells);
 			this.scheduler.add(b, true);
-			this.bots.push(b);
+			this.bots.push(b); // leaving this for now
+			var key = b._x+","+b._y;
+			this.map[key].push(b);
 		}
     },
 
-	_drawStatus: function() {
+	drawStatus: function() {
 		this.display.draw(this.statusWidth,this.statusHeight,this.player.hp);
-		this.writeMessage(this.statusWidth,this.statusHeight,
-				"HP: "+this.player.hp+"/" + this.player.maxhp);
+		this.writeString(this.statusWidth,this.statusHeight,
+				"HP: "+this.player.hp+"/" + this.player.maxhp + "     " +
+				"Scrap: "+this.player.scrap);
 	},
-    
-	
-	/*
-    _generateBots: function(freeCells) {
-        for (var i=0;i<10;i++) {
-            var index = Math.floor(ROT.RNG.getUniform() * freeCells.length);
-            var key = freeCells.splice(index, 1)[0];
-            this.map[key] = "*";
-			if (!i) {
-				this.ananas = key;
-			}
-        }
-    },
-	*/
     
     _drawWholeMap: function() {
         for (var key in this.map) {
             var parts = key.split(",");
             var x = parseInt(parts[0]);
             var y = parseInt(parts[1]);
-            this.display.draw(x, y, this.map[key]);
+            this.display.draw(x, y, this.map[key][0]);
         }
     },
 
-	writeMessage: function(x,y,msg) {
+	writeString: function(x,y,msg) {
 		for (var i=0; i < msg.length; ++i) {
 			this.display.draw(x+i,y,msg[i]);
 		}
 	},
 
+	addMessage: function(msg) {
+		this.msgHistory.push(msg.rpad(" ",65));
+		if (this.msgHistory.length > 5) {
+			// remove oldest message
+			this.msgHistory.shift();
+		}
+		for (var i = 0; i < this.msgHistory.length; ++i) {
+			this.writeString(this.statusWidth, this.statusHeight+i+1,
+					this.msgHistory[i]);
+		}
+	},
+
 	damage: function(attacker, defender, dmg) {
-		this.writeMessage(this.statusWidth, this.statusHeight+1,
+		this.addMessage(
 			attacker.name + " dealt " + dmg + " damage to " + defender.name + ".");
 		defender.hp = defender.hp - dmg;
 		if (defender.hp <= 0) {
@@ -102,7 +104,35 @@ var Player = function(x, y) {
     this._draw();
 	this.hp = 9;
 	this.maxhp = 9;
+	this.scrap = 0;
+	this.damage = 1;
 	this.name = "You";
+}
+
+Player.prototype.getX = function() { return this._x;}
+Player.prototype.getY = function() { return this._y;}
+
+Player.prototype.gainScrap = function(s) {
+	var msg = "You gained "+s+" scrap!";
+	if (this.hp + s > this.maxhp) {
+		msg += "You repair "+(this.maxhp-this.hp)+" hp.";
+		console.log(msg);
+		var leftover = s - (this.maxhp - this.hp);
+		this.scrap += leftover;
+		this.hp = this.maxhp;
+	} else {
+		this.hp + s;
+		msg += "You repair "+ s +" hp.";
+		console.log(msg);
+	}
+	if (this.scrap >= 10) {
+		msg += "you use 10 scrap to upgrade!!";
+		this.maxhp += 3;
+		this.damage += 1;
+		this.scrap -= 10;
+	}
+	Game.addMessage(msg);
+	Game.drawStatus();
 }
 
 Player.prototype.act = function() {
@@ -110,9 +140,6 @@ Player.prototype.act = function() {
     window.addEventListener("keydown", this);
 }
 
-Player.prototype.getX = function() { return this._x;}
-Player.prototype.getY = function() { return this._y;}
-    
 Player.prototype.handleEvent = function(e) {
     var keyMap = {};
     keyMap[75] = 0; // k
@@ -146,12 +173,12 @@ Player.prototype.handleEvent = function(e) {
 	for (var i=0; i < Game.bots.length; ++i) {
 		var bot = Game.bots[i];
 		if (newX == bot._x && newY == bot._y) {
-			Game.damage(this, bot, 1);
+			Game.damage(this, bot, this.damage);
 			attack = true;
 		}
 	} 
 	if (!attack) {
-		Game.display.draw(this._x, this._y, Game.map[this._x+","+this._y]);
+		Game.display.draw(this._x, this._y, Game.map[this._x+","+this._y][0]);
 		this._x = newX;
 		this._y = newY;
 		this._draw();
@@ -163,21 +190,6 @@ Player.prototype.handleEvent = function(e) {
 Player.prototype._draw = function() {
     Game.display.draw(this._x, this._y, "@", "#ff0");
 }    
-
-/*
-Player.prototype._checkBox = function() {
-	var key = this._x + "," + this._y;
-	if (Game.map[key] != "*") {
-		alert("There is no box here yo");
-	} else if (key == Game.ananas) {
-		alert("You found the prize! You win!");
-		Game.engine.lock();
-		window.removeEventListener("keydown", this);
-	} else {
-		alert("This box is empty :(");
-	}
-}
-*/
 
 Player.prototype.die = function() {
 	/* Player dies, game is over */
@@ -217,26 +229,39 @@ Lizard.prototype.act = function() {
 
 	if (path.length == 1) {
 		Game.damage(this, Game.player, 1);
-		Game._drawStatus();
+		Game.drawStatus();
 	} else {
 		x = path[0][0];
 		y = path[0][1];
-		Game.display.draw(this._x, this._y, Game.map[this._x+","+this._y]);
-		this._x = x;
-		this._y = y;
-		this._draw();
+		// check for lizard
+		var oldKey = this._x+","+this._y;
+		var newKey = x+","+y;
+		if (Game.map[newKey].length == 1) { // nothing is there
+			// get rid of lizard from old position
+			Game.map[oldKey].pop();
+			Game.display.draw(this._x, this._y, Game.map[oldKey][0]);
+			Game.map[newKey].push(this);
+			this._x = x;
+			this._y = y;
+			this._draw();
+		}
 	}
 }
 
 Lizard.prototype.die = function() {
 	/* remove from map, remove from scheduler */
-	Game.writeMessage(Game.statusWidth, Game.statusHeight+1,
-			"You killed the Lizard!");
+	var msg = "You killed the Lizard!";
 	var success = Game.scheduler.remove(this);
 	// console.log("removed lizard: " + success);
-	Game.display.draw(this._x, this._y, Game.map[this._x+","+this._y]);
+	var key = this._x+","+this._y;
+	Game.map[key].pop();
+	Game.display.draw(this._x, this._y, Game.map[key][0]);
 	/* remove lizard from bot list */
 	Game.bots.splice(Game.bots.indexOf(this),1);
+	/* Give Scrap */
+	var r = Math.round(ROT.RNG.getUniform() * 10);
+	Game.addMessage(msg);
+	Game.player.gainScrap(r);
 }
 
 Game._createBeing = function(what, freeCells) {
