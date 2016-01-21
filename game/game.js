@@ -15,6 +15,13 @@ var Upgrade = {
 		this.hp = this.maxhp;
 		this.damage = lvl;
 		this.level = lvl;
+	},
+
+	toaster: function(lvl) {
+		this.maxhp = 2 * lvl;
+		this.hp = this.maxhp;
+		this.damage = 1 + lvl;
+		this.level = lvl;
 	}
 }
 
@@ -84,19 +91,24 @@ var Game = {
 		this.map[down[0]+","+down[1]] = [">"];
 		this.display.draw(down[0], down[1], ">");
 
-		/* Cage?  Virus?  Reprogrammer? */
+		/* Catcher */
 		var reproCell = this.getRandFreeCell(freeCells);
 		this.map[reproCell[0]+","+reproCell[1]] = ["!"];
 		this.display.draw(reproCell[0], reproCell[1], "!", "#a2d");
 
-		/* Lizard Generation based on level */
+		/* Bot Generation based on level */
 		for (var i=0; i<10; i++) {
 			var c = this.getRandFreeCell(freeCells);
-			/* Lizards */
-			var lizardLevel = Math.max(1,Math.round(
+			/* Lizards / toasters */
+			var botLevel = Math.max(1,Math.round(
 						Math.pow(Game.level,2.0) * ROT.RNG.getUniform()));
-			var b = new Bot(c[0],  c[1], "Lizard", "l", "cyan",
-					9, true, lizardLevel, Upgrade.lizard);
+			if (ROT.RNG.getUniform() < 0.7) {
+				var b = new Bot(c[0],  c[1], "Lizard", "l", "cyan",
+						9, true, botLevel, Upgrade.lizard);
+			} else {
+				var b = new Bot(c[0],  c[1], "Toaster", "t", "orange",
+						9, true, botLevel, Upgrade.toaster);
+			}
 			this.scheduler.add(b, true);
 			var key = b._x+","+b._y;
 			this.map[key].push(b);
@@ -373,15 +385,24 @@ Bot.prototype.act = function() {
 		// check for lizard
 		var oldKey = this._x+","+this._y;
 		var newKey = x+","+y;
-		if (Game.map[newKey].length == 1) { // nothing is there
-			// get rid of bot from old position
-			Game.map[oldKey].pop();
-			Game.display.draw(this._x, this._y, Game.map[oldKey][0]);
-			Game.map[newKey].push(this);
-			this._x = x;
-			this._y = y;
-			this.draw();
+		if (Game.map[newKey].length > 1) { // something is there
+			// try a  random coordinate
+			x = this._x + Math.round(ROT.RNG.getUniform() * 3 - 1);
+			y = this._y + Math.round(ROT.RNG.getUniform() * 3 - 1);
+			var newKey = x+","+y;
+			if (!(newKey in Game.map) || Game.map[newKey].length > 1) {  
+				// still something
+				return;
+			}
 		}
+		// get rid of bot from old position
+		Game.map[oldKey].pop();
+		Game.display.draw(this._x, this._y, Game.map[oldKey][0]);
+		// console.log("newKey = " + newKey + "; Map has " + Game.map[newKey])
+		Game.map[newKey].push(this);
+		this._x = x;
+		this._y = y;
+		this.draw();
 	}
 }
 
