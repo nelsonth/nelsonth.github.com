@@ -1,7 +1,3 @@
-/* Game handles overall map, engine, scheduler
- * total everything = height + status + msg
- */
-
 var Upgrade = {
 	wolfercycle: function(lvl) {
 		this.maxhp = 6 + 3 * lvl;
@@ -24,6 +20,10 @@ var Upgrade = {
 		this.level = lvl;
 	}
 }
+
+/* Game handles overall map, engine, scheduler
+ * total everything = height + status + msg
+ */
 
 var Game = {
     display: null,
@@ -67,7 +67,8 @@ var Game = {
             if (value) { return; }
             
             var key = x+","+y;
-            this.map[key] = ["."];
+            this.map[key] = [{tile:".", color:"#fff", 
+					describe: function() {return "";}}];
             freeCells.push(key);
         }
         digger.create(digCallback.bind(this));
@@ -76,10 +77,11 @@ var Game = {
 
 		var cor = this.getRandFreeCell(freeCells);
 
-		this.player._x = cor[0];
-		this.player._y = cor[1];
+		this.player.x = cor[0];
+		this.player.y = cor[1];
 
-		this.player.draw();
+		this.map[cor[0]+","+cor[1]].push(this.player);
+		this.drawTile(cor[0], cor[1], false);
 
 		this.drawStatus();
 
@@ -88,13 +90,15 @@ var Game = {
 		var down = this.getRandFreeCell(freeCells);
 
 		// down stair
-		this.map[down[0]+","+down[1]] = [">"];
-		this.display.draw(down[0], down[1], ">");
+		this.map[down[0]+","+down[1]] = [{tile:">",color:"#fff",
+				describe: function() {return "A stair leading down.";}}];
+		this.drawTile(down[0], down[1], false);
 
 		/* Catcher */
-		var reproCell = this.getRandFreeCell(freeCells);
-		this.map[reproCell[0]+","+reproCell[1]] = ["!"];
-		this.display.draw(reproCell[0], reproCell[1], "!", "#a2d");
+		var catchCell = this.getRandFreeCell(freeCells);
+		this.map[catchCell[0]+","+catchCell[1]] = [{tile:"!", color:"#a2d",
+				describe: function() {return "A catcher.";}}];
+		this.drawTile(catchCell[0], catchCell[1], false);
 
 		/* Bot Generation based on level */
 		for (var i=0; i<10; i++) {
@@ -110,8 +114,9 @@ var Game = {
 						9, true, botLevel, Upgrade.toaster);
 			}
 			this.scheduler.add(b, true);
-			var key = b._x+","+b._y;
+			var key = b.x+","+b.y;
 			this.map[key].push(b);
+			this.drawTile(b.x, b.y, false);
 		}
     },
 
@@ -119,8 +124,7 @@ var Game = {
 		for (var i =0; i < this.maxBots; ++i) {
 			if (i < this.player.botTeam.length) {
 				var bot = this.player.botTeam[i];
-				var msg = "Lv " + bot.level + " " + bot.name + "> " + 
-					"HP: "+bot.hp+"/" + bot.maxhp ;
+				var msg = bot.describe();
 				if (i==0) {
 					msg += "    " + "Scrap: "+this.player.scrap;
 					msg += "    " + "Catchers: " + this.player.catchers;
@@ -137,9 +141,18 @@ var Game = {
             var parts = key.split(",");
             var x = parseInt(parts[0]);
             var y = parseInt(parts[1]);
-            this.display.draw(x, y, this.map[key][0]);
+            this.drawTile(x, y, false);
         }
     },
+
+	drawTile: function(x, y, highlight) {
+		var point = this.map[x+","+y].slice(-1)[0];
+		if (highlight) {
+			this.display.draw(x, y, point.tile, point.color, "#050");
+		} else {
+			this.display.draw(x, y, point.tile, point.color);
+		}
+	},
 
 	writeString: function(x,y,msg) {
 		for (var i=0; i < msg.length; ++i) {
@@ -174,17 +187,20 @@ var Game = {
 };
 
 var Player = function(x, y, bot) {
-    this._x = x;
-    this._y = y;
+    this.x = x;
+    this.y = y;
 	this.scrap = 0;
 	this.catchers = 0;
 	this.botTeam = [bot];
 	this.name = "You";
+	this.tile = "@";
+	this.color = "#ff0";
 	this.captureMode = false;
+	this.examineMode = false;
+	this.examineX = x;
+	this.examineY = y;
+	this.describe = function() {return "";};
 }
-
-Player.prototype.getX = function() { return this._x;}
-Player.prototype.getY = function() { return this._y;}
 
 Player.prototype.gainScrap = function(s) {
 	var msg = "You gained "+s+" scrap!";
@@ -233,13 +249,54 @@ Player.prototype.handleEvent = function(e) {
     keyMap[72] = 6; // h
     keyMap[89] = 7; // y
 
+
     var code = e.keyCode;
 	// console.log("keycode: "+code);
+    var dir = ROT.DIRS[8][keyMap[code]];
+
+	if (code == 88) { // x = examine
+		this.examineMode = !this.examineMode;
+		if (this.examineMode) {
+			this.examineX = this.x;
+			this.examineY = this.y;
+			Game.drawTile(this.examineX, this.examineY, true);
+			//console.log("In examine mode.");
+		} else {
+			Game.drawTile(this.examineX, this.examineY, false);
+			//console.log("In play mode.");
+		}
+		return;
+	}
+
+	if (this.examineMode) {
+		/* one of vi directions? */
+		if (!(code in keyMap)) { return; }
+		
+		var newX = this.examineX + dir[0];
+		var newY = this.examineY + dir[1];
+		var newKey = newX+","+newY
+
+		if (!(newKey in Game.map)) { return; }
+
+		var description = Game.map[newKey].slice(-1)[0].describe();
+		if (description) {
+			Game.addMessage(description);
+		}
+
+		Game.drawTile(this.examineX, this.examineY, false);
+		Game.drawTile(newX, newY, true);
+		this.examineX = newX;
+		this.examineY = newY;
+
+		return;
+	}
+
 	if (code == 67) { // letter c
 		this.captureMode = !this.captureMode;
 		Game.addMessage("Capture Mode: "+this.captureMode);
 		return;
 	}
+
 
 	if (code == 82) { // r = rotate
 		var t = this.botTeam.shift();
@@ -252,9 +309,8 @@ Player.prototype.handleEvent = function(e) {
     if (!(code in keyMap)) { return; }
 
     /* is there a free space? */
-    var dir = ROT.DIRS[8][keyMap[code]];
-    var newX = this._x + dir[0];
-    var newY = this._y + dir[1];
+    var newX = this.x + dir[0];
+    var newY = this.y + dir[1];
     var newKey = newX + "," + newY;
     if (!(newKey in Game.map)) { return; }
 
@@ -276,21 +332,24 @@ Player.prototype.handleEvent = function(e) {
 	}
 	if (!attack) {
 		/* Check for > */
-		if (Game.map[newKey] == ">") {
+		if (Game.map[newKey][0].tile == ">") {
 			Game._generateMap();
 			Game.level += 1;
 			// ???
 		} else {
-			if (Game.map[newKey] == "!") {
+			if (Game.map[newKey][0].tile == "!") {
 				// pickup catcher
-				Game.map[newKey] = ".";
+				Game.map[newKey][0] = {tile:".", color:"#fff"};
 				this.catchers += 1;
 				Game.drawStatus();
 			}
-			Game.display.draw(this._x, this._y, Game.map[this._x+","+this._y][0]);
-			this._x = newX;
-			this._y = newY;
-			this.draw();
+			Game.map[this.x+","+this.y].pop();
+			Game.drawTile(this.x, this.y, false);
+			this.x = newX;
+			this.y = newY;
+			//console.log(Game.map[newKey]);
+			Game.map[newKey].push(this);
+			Game.drawTile(newX, newY, false);
 		}
 	}
     window.removeEventListener("keydown", this);
@@ -315,17 +374,13 @@ Player.prototype.capture = function(bot) {
 		/* remove from map, remove from scheduler */
 		var success = Game.scheduler.remove(bot);  
 		// remove youreself == infinite loop!!!!
-		var key = bot._x+","+bot._y;
+		var key = bot.x+","+bot.y;
 		Game.map[key].pop();
-		Game.display.draw(bot._x, bot._y, Game.map[key][0]);
+		Game.drawTile(bot.x, bot.y, false);
 		this.catchers -= 1;
 		Game.drawStatus();
 	}
 }
-
-Player.prototype.draw = function() {
-    Game.display.draw(this._x, this._y, "@", "#ff0");
-}    
 
 Player.prototype.die = function() {
 	/* Player dies, game is over */
@@ -343,12 +398,11 @@ Player.prototype.die = function() {
  * scrap max value (?)
  */
 var Bot = function(x, y, name, symbol, color, scrap, wild, lvl, upgrade) {
-	this._x = x;
-	this._y = y;
-	this.symbol = symbol;
+	this.x = x;
+	this.y = y;
+	this.tile = symbol;
 	this.scrap = scrap;
 	this.color = color;
-	this.draw();
 	this.level = lvl;
 	this.name = name;
 	this.wild = wild;
@@ -356,13 +410,13 @@ var Bot = function(x, y, name, symbol, color, scrap, wild, lvl, upgrade) {
 	this.upgrade(this.level);
 }
 
-Bot.prototype.draw = function() {
-	Game.display.draw(this._x, this._y, this.symbol, this.color);
+Bot.prototype.describe = function() {
+	return "Lv " + this.level + " " + this.name + "> DMG: "+this.damage+" HP: " + this.hp +"/"+this.maxhp;
 }
 
 Bot.prototype.act = function() {
-	var x = Game.player.getX();
-	var y = Game.player.getY();
+	var x = Game.player.x;
+	var y = Game.player.y;
 	var passableCallback = function(x, y) {
 		return (x+","+y in Game.map);
 	}
@@ -372,7 +426,7 @@ Bot.prototype.act = function() {
 	var pathCallback = function(x,y) {
 		path.push([x,y]);
 	}
-	astar.compute(this._x, this._y, pathCallback);
+	astar.compute(this.x, this.y, pathCallback);
 
 	path.shift(); /* remove bot's position from the path list */
 
@@ -383,12 +437,12 @@ Bot.prototype.act = function() {
 		x = path[0][0];
 		y = path[0][1];
 		// check for lizard
-		var oldKey = this._x+","+this._y;
+		var oldKey = this.x+","+this.y;
 		var newKey = x+","+y;
 		if (Game.map[newKey].length > 1) { // something is there
 			// try a  random coordinate
-			x = this._x + Math.round(ROT.RNG.getUniform() * 3 - 1);
-			y = this._y + Math.round(ROT.RNG.getUniform() * 3 - 1);
+			x = this.x + Math.round(ROT.RNG.getUniform() * 3 - 1);
+			y = this.y + Math.round(ROT.RNG.getUniform() * 3 - 1);
 			var newKey = x+","+y;
 			if (!(newKey in Game.map) || Game.map[newKey].length > 1) {  
 				// still something
@@ -397,12 +451,11 @@ Bot.prototype.act = function() {
 		}
 		// get rid of bot from old position
 		Game.map[oldKey].pop();
-		Game.display.draw(this._x, this._y, Game.map[oldKey][0]);
-		// console.log("newKey = " + newKey + "; Map has " + Game.map[newKey])
+		Game.drawTile(this.x, this.y, false);
 		Game.map[newKey].push(this);
-		this._x = x;
-		this._y = y;
-		this.draw();
+		this.x = x;
+		this.y = y;
+		Game.drawTile(this.x, this.y, false);
 	}
 }
 
@@ -410,9 +463,9 @@ Bot.prototype.die = function() {
 	/* remove from map, remove from scheduler */
 	var msg = "You killed the Lv " + this.level + " " + this.name + ".";
 	var success = Game.scheduler.remove(this);
-	var key = this._x+","+this._y;
+	var key = this.x+","+this.y;
 	Game.map[key].pop();
-	Game.display.draw(this._x, this._y, Game.map[key][0]);
+	Game.drawTile(this.x, this.y, false);
 	/* Give Scrap */
 	var r = Math.round(ROT.RNG.getUniform() * this.scrap);
 	Game.addMessage(msg);
