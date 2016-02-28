@@ -29,6 +29,7 @@ var Game = {
 	height: 24,
 	statusWidth: 5,
     msgHistory: [],
+	colorHistory: [],
 	maxBots: 3,
 	maxMsg: 5,
 	level: 1,
@@ -161,21 +162,25 @@ var Game = {
 		}
 	},
 
-	writeString: function(x,y,msg) {
+	writeString: function(x,y,msg, color) {
+		console.log("writeString:" + color);
 		for (var i=0; i < msg.length; ++i) {
-			this.display.draw(x+i,y,msg[i]);
+			this.display.draw(x+i,y,msg[i], color);
 		}
 	},
 
-	addMessage: function(msg) {
+	addMessage: function(msg, color) { // Colors?
 		this.msgHistory.push(msg.rpad(" ",65));
+		this.colorHistory.push(color);
 		if (this.msgHistory.length > this.maxMsg) {
 			// remove oldest message
 			this.msgHistory.shift();
+			this.colorHistory.shift();
 		}
 		for (var i = 0; i < this.msgHistory.length; ++i) {
+			console.log('color = ' + color);
 			this.writeString(this.statusWidth, this.height+i+this.maxBots,
-					this.msgHistory[i]);
+					this.msgHistory[i], this.colorHistory[i]);
 		}
 	},
 
@@ -233,7 +238,7 @@ Player.prototype.gainScrap = function(s) {
 }
 
 Player.prototype.loseBot = function(deadBot) {
-	Game.addMessage("Lv " + deadBot.level + " " + deadBot.name + " has died!");
+	Game.addMessage("Lv " + deadBot.level + " " + deadBot.name + " has died!", "red");
 	this.botTeam.splice(this.botTeam.indexOf(deadBot),1);
 	if (this.botTeam.length == 0) {
 		this.die();
@@ -475,7 +480,7 @@ Bot.prototype.die = function() {
 	Game.drawTile(this.x, this.y, false);
 	/* Give Scrap */
 	var r = Math.round(ROT.RNG.getUniform() * this.scrap);
-	Game.addMessage(msg);
+	Game.addMessage(msg, "red");
 	Game.player.gainScrap(r);
 }
 
