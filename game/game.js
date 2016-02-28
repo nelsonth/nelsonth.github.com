@@ -92,7 +92,7 @@ var Game = {
 
 		/* Catcher */
 		var catchCell = this.getRandFreeCell(freeCells);
-		this.map[catchCell[0]+","+catchCell[1]] = [{tile:"!", color:"#a2d",
+		this.map[catchCell[0]+","+catchCell[1]] = [{tile:"!", color:"#f7b",
 				describe: function() {return "A catcher.";}}];
 		this.drawTile(catchCell[0], catchCell[1], false);
 
