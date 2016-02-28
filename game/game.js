@@ -136,6 +136,7 @@ var Game = {
 				if (i==0) {
 					msg += "    " + "Scrap: "+this.player.scrap;
 					msg += "    " + "Catchers: " + this.player.catchers;
+					msg += "    " + "Level: " + this.level;
 				}
 				this.writeString(this.statusWidth,this.height+i, msg.rpad(" ",70));
 			} else {
