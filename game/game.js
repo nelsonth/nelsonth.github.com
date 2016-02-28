@@ -1,25 +1,20 @@
 var Upgrade = {
-	wolfercycle: function(lvl) {
-		this.maxhp = 6 + 3 * lvl;
-		this.hp = this.maxhp; // free hp refill on level up
-		this.damage = lvl;
-		this.level = lvl;
-	},
-
-	lizard: function(lvl) {
-		this.maxhp = -1 + 4 * lvl;
-		this.hp = this.maxhp;
-		this.damage = lvl;
-		this.level = lvl;
-	},
-
-	toaster: function(lvl) {
-		this.maxhp = 2 * lvl;
-		this.hp = this.maxhp;
-		this.damage = 1 + lvl;
-		this.level = lvl;
+	fromStats: function(dmg_lvl, hp_lvl, base_dmg, base_hp) {
+		return function(lvl) {
+			this.maxhp = Math.max(1, Math.round(hp_lvl*lvl + base_hp));
+			this.hp = this.maxhp;
+			this.damage = Math.max(0, Math.round(dmg_lvl*lvl + base_dmg));
+			this.level = lvl;
+		}
 	}
 }
+
+Upgrade.roomba = Upgrade.fromStats(0.9, 2.2, -0.4, 3.6);
+Upgrade.shredder = Upgrade.fromStats(2.7, 3.4, 0.4, 3.0);
+Upgrade.knife = Upgrade.fromStats(0.5, 3.0, -1.2, 2.2);
+Upgrade.fork = Upgrade.fromStats(0.2, 3.9, -1.2, 4.9);
+Upgrade.toaster = Upgrade.fromStats(1.5, 0.4, -0.6, 3.6);
+Upgrade.wolfercycle = Upgrade.fromStats(1.0, 3.0, -1.0, 3.0);
 
 /* Game handles overall map, engine, scheduler
  * total everything = height + status + msg
@@ -46,7 +41,7 @@ var Game = {
         this.scheduler = new ROT.Scheduler.Simple();
 
 		var startBot = new Bot(-1,-1, "Wolfercycle",'w', "white",
-				10,false, 1, Upgrade.wolfercycle);
+				10,false, 3, Upgrade.wolfercycle);
 		this.player = new Player(-1, -1, startBot);
         
         this._generateMap();
@@ -103,15 +98,27 @@ var Game = {
 		/* Bot Generation based on level */
 		for (var i=0; i<10; i++) {
 			var c = this.getRandFreeCell(freeCells);
-			/* Lizards / toasters */
 			var botLevel = Math.max(1,Math.round(
 						Math.pow(Game.level,2.0) * ROT.RNG.getUniform()));
-			if (ROT.RNG.getUniform() < 0.7) {
-				var b = new Bot(c[0],  c[1], "Lizard", "l", "cyan",
-						9, true, botLevel, Upgrade.lizard);
-			} else {
+			var whichBot = ROT.RNG.getUniform();
+			if (whichBot < 0.2) {
+				var b = new Bot(c[0],  c[1], "Roomba", "r", "cyan",
+						9, true, botLevel, Upgrade.roomba);
+			} else if (whichBot < 0.4) {
 				var b = new Bot(c[0],  c[1], "Toaster", "t", "orange",
 						9, true, botLevel, Upgrade.toaster);
+			} else if (whichBot < 0.6) {
+				var b = new Bot(c[0], c[1], "fork", "f", "blue",
+						9, true, botLevel, Upgrade.fork);
+			} else if (whichBot < 0.8) {
+				var b = new Bot(c[0], c[1], "knife", "k", "blue",
+						9, true, botLevel, Upgrade.knife);
+			} else if (whichBot < 0.9) {
+				var b = new Bot(c[0], c[1], "shredder", "s", "red",
+						9, true, botLevel, Upgrade.shredder);
+			} else {
+				var b = new Bot(c[0], c[1], "wolfercycle", "w", "yellow",
+						9, true, botLevel, Upgrade.wolfercycle);
 			}
 			this.scheduler.add(b, true);
 			var key = b.x+","+b.y;
@@ -403,11 +410,10 @@ var Bot = function(x, y, name, symbol, color, scrap, wild, lvl, upgrade) {
 	this.tile = symbol;
 	this.scrap = scrap;
 	this.color = color;
-	this.level = lvl;
 	this.name = name;
 	this.wild = wild;
 	this.upgrade = upgrade;
-	this.upgrade(this.level);
+	this.upgrade(lvl);
 }
 
 Bot.prototype.describe = function() {
@@ -439,7 +445,8 @@ Bot.prototype.act = function() {
 		// check for lizard
 		var oldKey = this.x+","+this.y;
 		var newKey = x+","+y;
-		if (Game.map[newKey].length > 1) { // something is there
+		// path.length > 4 : too far away to chase, randomly move
+		if (path.length > 4 || Game.map[newKey].length > 1) { // something is there
 			// try a  random coordinate
 			x = this.x + Math.round(ROT.RNG.getUniform() * 3 - 1);
 			y = this.y + Math.round(ROT.RNG.getUniform() * 3 - 1);
