@@ -71,13 +71,15 @@ var Game = {
         
         this._drawWholeMap();
 
-		var cor = this.getRandFreeCell(freeCells);
+		for (var i=0; i<this.player.botTeam.length; ++i) {
+			var cor = this.getRandFreeCell(freeCells);
 
-		this.player.botTeam[0].x = cor[0];
-		this.player.botTeam[0].y = cor[1];
+			this.player.botTeam[i].x = cor[0];
+			this.player.botTeam[i].y = cor[1];
 
-		this.map[cor[0]+","+cor[1]].push(this.player.botTeam[0]);
-		this.drawTile(cor[0], cor[1], false);
+			this.map[cor[0]+","+cor[1]].push(this.player.botTeam[i]);
+			this.drawTile(cor[0], cor[1], false);
+		}
 
 		this.drawStatus();
 
