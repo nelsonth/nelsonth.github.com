@@ -331,8 +331,13 @@ Player.prototype.handleEvent = function(e) {
 
 	/* Check for bots */
 	var attack = false;
-	if (Game.map[newKey].length > 1) { // enemy bot at position
+	if (Game.map[newKey].length > 1) { // bot at position
 		var bot = Game.map[newKey][1]; // only 1 allow now
+		if (!bot.wild) {
+			// an ally
+			Game.addMessage("You bump into your bot.");
+			return;
+		}
 		attack = true;
 		if (this.captureMode) {
 			if (this.catchers < 1) {
