@@ -73,10 +73,10 @@ var Game = {
 
 		var cor = this.getRandFreeCell(freeCells);
 
-		this.player.x = cor[0];
-		this.player.y = cor[1];
+		this.player.botTeam[0].x = cor[0];
+		this.player.botTeam[0].y = cor[1];
 
-		this.map[cor[0]+","+cor[1]].push(this.player);
+		this.map[cor[0]+","+cor[1]].push(this.player.botTeam[0]);
 		this.drawTile(cor[0], cor[1], false);
 
 		this.drawStatus();
@@ -164,7 +164,7 @@ var Game = {
 	},
 
 	writeString: function(x,y,msg, color) {
-		console.log("writeString:" + color);
+		// console.log("writeString:" + color);
 		for (var i=0; i < msg.length; ++i) {
 			this.display.draw(x+i,y,msg[i], color);
 		}
@@ -179,7 +179,7 @@ var Game = {
 			this.colorHistory.shift();
 		}
 		for (var i = 0; i < this.msgHistory.length; ++i) {
-			console.log('color = ' + color);
+			// console.log('color = ' + color);
 			this.writeString(this.statusWidth, this.height+i+this.maxBots,
 					this.msgHistory[i], this.colorHistory[i]);
 		}
@@ -200,8 +200,8 @@ var Game = {
 };
 
 var Player = function(x, y, bot) {
-    this.x = x;
-    this.y = y;
+    // this.x = x;
+    // this.y = y;
 	this.scrap = 0;
 	this.catchers = 0;
 	this.botTeam = [bot];
@@ -270,8 +270,8 @@ Player.prototype.handleEvent = function(e) {
 	if (code == 88) { // x = examine
 		this.examineMode = !this.examineMode;
 		if (this.examineMode) {
-			this.examineX = this.x;
-			this.examineY = this.y;
+			this.examineX = this.botTeam[0].x;
+			this.examineY = this.botTeam[0].y;
 			Game.drawTile(this.examineX, this.examineY, true);
 			//console.log("In examine mode.");
 		} else {
@@ -322,8 +322,8 @@ Player.prototype.handleEvent = function(e) {
     if (!(code in keyMap)) { return; }
 
     /* is there a free space? */
-    var newX = this.x + dir[0];
-    var newY = this.y + dir[1];
+    var newX = this.botTeam[0].x + dir[0];
+    var newY = this.botTeam[0].y + dir[1];
     var newKey = newX + "," + newY;
     if (!(newKey in Game.map)) { return; }
 
@@ -356,12 +356,12 @@ Player.prototype.handleEvent = function(e) {
 				this.catchers += 1;
 				Game.drawStatus();
 			}
-			Game.map[this.x+","+this.y].pop();
-			Game.drawTile(this.x, this.y, false);
-			this.x = newX;
-			this.y = newY;
+			Game.map[this.botTeam[0].x+","+this.botTeam[0].y].pop();
+			Game.drawTile(this.botTeam[0].x, this.botTeam[0].y, false);
+			this.botTeam[0].x = newX;
+			this.botTeam[0].y = newY;
 			//console.log(Game.map[newKey]);
-			Game.map[newKey].push(this);
+			Game.map[newKey].push(this.botTeam[0]);
 			Game.drawTile(newX, newY, false);
 		}
 	}
@@ -383,13 +383,14 @@ Player.prototype.capture = function(bot) {
 	} else {
 		bot.wild = false;
 		this.botTeam.push(bot);
-		Game.addMessage("You captured the Lv " + bot.level + " " + bot.name + "!");
+		Game.addMessage("You captured the Lv " + bot.level + " " + bot.name + "!", "orange");
 		/* remove from map, remove from scheduler */
 		var success = Game.scheduler.remove(bot);  
+		var s2 = Game.scheduler.add(Game.player);
 		// remove youreself == infinite loop!!!!
-		var key = bot.x+","+bot.y;
-		Game.map[key].pop();
-		Game.drawTile(bot.x, bot.y, false);
+		// var key = bot.x+","+bot.y;
+		// Game.map[key].pop();
+		// Game.drawTile(bot.x, bot.y, false);
 		this.catchers -= 1;
 		Game.drawStatus();
 	}
@@ -427,8 +428,9 @@ Bot.prototype.describe = function() {
 }
 
 Bot.prototype.act = function() {
-	var x = Game.player.x;
-	var y = Game.player.y;
+	console.log("Game.botTeam[0]" + Game.player.botTeam);
+	var x = Game.player.botTeam[0].x;
+	var y = Game.player.botTeam[0].y;
 	var passableCallback = function(x, y) {
 		return (x+","+y in Game.map);
 	}
