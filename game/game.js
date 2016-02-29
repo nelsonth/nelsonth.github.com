@@ -240,7 +240,9 @@ Player.prototype.gainScrap = function(s) {
 
 Player.prototype.loseBot = function(deadBot) {
 	Game.addMessage("Lv " + deadBot.level + " " + deadBot.name + " has died!", "red");
+	deadBot.die();
 	this.botTeam.splice(this.botTeam.indexOf(deadBot),1);
+	// console.log("this.botTeam.length: " + this.botTeam.length);
 	if (this.botTeam.length == 0) {
 		this.die();
 	}
@@ -428,7 +430,6 @@ Bot.prototype.describe = function() {
 }
 
 Bot.prototype.act = function() {
-	console.log("Game.botTeam[0]" + Game.player.botTeam);
 	var x = Game.player.botTeam[0].x;
 	var y = Game.player.botTeam[0].y;
 	var passableCallback = function(x, y) {
