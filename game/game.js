@@ -1,3 +1,4 @@
+
 var Upgrade = {
 	fromStats: function(dmg_lvl, hp_lvl, base_dmg, base_hp) {
 		return function(lvl) {
@@ -34,6 +35,8 @@ var Game = {
 	maxMsg: 5,
 	level: 1,
 
+	player_hl: "#806000",
+
     init: function() {
         this.display = new ROT.Display({width:this.width, 
 			height:this.height+this.maxBots+this.maxMsg+1});
@@ -43,6 +46,7 @@ var Game = {
 
 		var startBot = new Bot(-1,-1, "Wolfercycle",'w', "white",
 				10,false, 3, Upgrade.wolfercycle);
+		startBot.backcolor = Game.player_hl;
 		this.player = new Player(-1, -1, startBot);
         
         this._generateMap();
@@ -63,7 +67,7 @@ var Game = {
             if (value) { return; }
             
             var key = x+","+y;
-            this.map[key] = [{tile:".", color:"#fff", 
+            this.map[key] = [{tile:".", color:"#fff", backcolor:"#000", 
 					describe: function() {return "";}}];
             freeCells.push(key);
         }
@@ -88,13 +92,13 @@ var Game = {
 		var down = this.getRandFreeCell(freeCells);
 
 		// down stair
-		this.map[down[0]+","+down[1]] = [{tile:">",color:"#fff",
+		this.map[down[0]+","+down[1]] = [{tile:">",color:"#fff", backcolor:"#000", 
 				describe: function() {return "A stair leading down.";}}];
 		this.drawTile(down[0], down[1], false);
 
 		/* Catcher */
 		var catchCell = this.getRandFreeCell(freeCells);
-		this.map[catchCell[0]+","+catchCell[1]] = [{tile:"!", color:"#f7b",
+		this.map[catchCell[0]+","+catchCell[1]] = [{tile:"!", color:"#f7b", backcolor:"#000",
 				describe: function() {return "A catcher.";}}];
 		this.drawTile(catchCell[0], catchCell[1], false);
 
@@ -159,9 +163,9 @@ var Game = {
 	drawTile: function(x, y, highlight) {
 		var point = this.map[x+","+y].slice(-1)[0];
 		if (highlight) {
-			this.display.draw(x, y, point.tile, point.color, "#050");
+			this.display.draw(x, y, point.tile, point.color, highlight);
 		} else {
-			this.display.draw(x, y, point.tile, point.color);
+			this.display.draw(x, y, point.tile, point.color, point.backcolor);
 		}
 	},
 
@@ -276,7 +280,7 @@ Player.prototype.handleEvent = function(e) {
 		if (this.examineMode) {
 			this.examineX = this.botTeam[0].x;
 			this.examineY = this.botTeam[0].y;
-			Game.drawTile(this.examineX, this.examineY, true);
+			Game.drawTile(this.examineX, this.examineY, "#005500");
 			//console.log("In examine mode.");
 		} else {
 			Game.drawTile(this.examineX, this.examineY, false);
@@ -301,7 +305,7 @@ Player.prototype.handleEvent = function(e) {
 		}
 
 		Game.drawTile(this.examineX, this.examineY, false);
-		Game.drawTile(newX, newY, true);
+		Game.drawTile(newX, newY, "#005500");
 		this.examineX = newX;
 		this.examineY = newY;
 
@@ -361,7 +365,7 @@ Player.prototype.handleEvent = function(e) {
 		} else {
 			if (Game.map[newKey][0].tile == "!") {
 				// pickup catcher
-				Game.map[newKey][0] = {tile:".", color:"#fff"};
+				Game.map[newKey][0] = {tile:".", color:"#fff", backcolor:"#000"};
 				this.catchers += 1;
 				Game.drawStatus();
 			}
@@ -391,6 +395,8 @@ Player.prototype.capture = function(bot) {
 		Game.addMessage("The Catcher failed!");
 	} else {
 		bot.wild = false;
+		bot.backcolor = Game.player_hl;
+		Game.drawTile(bot.x, bot.y, false);
 		this.botTeam.push(bot);
 		Game.addMessage("You captured the Lv " + bot.level + " " + bot.name + "!", "orange");
 		/* remove from map, remove from scheduler */
