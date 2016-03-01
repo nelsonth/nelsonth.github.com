@@ -35,7 +35,8 @@ var Game = {
 	maxMsg: 5,
 	level: 1,
 
-	player_hl: "#806000",
+	player_hl: "#cc9900",
+	friendly_hl: "#4d3900",
 
     init: function() {
         this.display = new ROT.Display({width:this.width, 
@@ -321,8 +322,12 @@ Player.prototype.handleEvent = function(e) {
 
 	if (code == 82) { // r = rotate
 		var t = this.botTeam.shift();
+		t.backcolor = Game.friendly_hl;
+		Game.drawTile(t.x, t.y, false);
 		this.botTeam.push(t);
+		this.botTeam[0].backcolor = Game.player_hl;
 		Game.drawStatus();
+		Game.drawTile(this.botTeam[0].x, this.botTeam[0].y, false);
 		window.removeEventListener("keydown", this);
 		Game.engine.unlock();
 	}
@@ -395,7 +400,7 @@ Player.prototype.capture = function(bot) {
 		Game.addMessage("The Catcher failed!");
 	} else {
 		bot.wild = false;
-		bot.backcolor = Game.player_hl;
+		bot.backcolor = Game.friendly_hl;
 		Game.drawTile(bot.x, bot.y, false);
 		this.botTeam.push(bot);
 		Game.addMessage("You captured the Lv " + bot.level + " " + bot.name + "!", "orange");
