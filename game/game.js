@@ -84,11 +84,10 @@ var Game = {
 
 			this.map[cor[0]+","+cor[1]].push(this.player.botTeam[i]);
 			this.drawTile(cor[0], cor[1], false);
+			this.scheduler.add(this.player, true);
 		}
 
 		this.drawStatus();
-
-		this.scheduler.add(this.player, true);
 
 		var down = this.getRandFreeCell(freeCells);
 
