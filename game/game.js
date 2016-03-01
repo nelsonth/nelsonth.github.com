@@ -215,7 +215,7 @@ var Player = function(x, y, bot) {
 	this.tile = "@";
 	this.color = "#ff0";
 	this.captureMode = false;
-	this.examineMode = false;
+	this.uiMode = "play"; // "play", "examine", "scrap"
 	this.examineX = x;
 	this.examineY = y;
 	this.describe = function() {return "";};
@@ -235,11 +235,11 @@ Player.prototype.gainScrap = function(s) {
 		msg += "You repair "+ s +" hp.";
 		//console.log(msg);
 	}
-	if (this.scrap >= 10) {
-		msg += "you use 10 scrap to upgrade!!";
-		currentBot.upgrade(currentBot.level + 1);
-		this.scrap -= 10;
-	}
+	// if (this.scrap >= 10) {
+		// msg += "you use 10 scrap to upgrade!!";
+		// currentBot.upgrade(currentBot.level + 1);
+		// this.scrap -= 10;
+	// }
 	Game.addMessage(msg);
 	Game.drawStatus();
 }
@@ -275,9 +275,32 @@ Player.prototype.handleEvent = function(e) {
 	// console.log("keycode: "+code);
     var dir = ROT.DIRS[8][keyMap[code]];
 
+	if (code == 83) { // s = scrap
+		if (this.scrap >= 10) {
+			Game.addMessage("you use 10 scrap to upgrade!!", "yellow");
+			this.botTeam[0].upgrade(this.botTeam[0].level + 1);
+			this.scrap -= 10;
+			Game.drawStatus();
+		} else {
+			Game.addMessage("Not enough scrap to upgrade.");
+		}
+		// if (this.uiMode != "scrap") {
+			// console.log("changing to scrap mode");
+			// this.uiMode = "scrap";
+		// } else {
+			// console.log("changing to play mode");
+			// this.uiMode = "play";
+		// }
+		return;
+	}
+
 	if (code == 88) { // x = examine
-		this.examineMode = !this.examineMode;
-		if (this.examineMode) {
+		if (this.uiMode == "examine") {
+			this.uiMode = "play";
+		} else {
+			this.uiMode = "examine";
+		}
+		if (this.uiMode == "examine") {
 			this.examineX = this.botTeam[0].x;
 			this.examineY = this.botTeam[0].y;
 			Game.drawTile(this.examineX, this.examineY, "#005500");
@@ -289,7 +312,7 @@ Player.prototype.handleEvent = function(e) {
 		return;
 	}
 
-	if (this.examineMode) {
+	if (this.uiMode == "examine") {
 		/* one of vi directions? */
 		if (!(code in keyMap)) { return; }
 		
