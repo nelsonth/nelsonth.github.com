@@ -37,6 +37,8 @@ var Game = {
 
 	player_hl: "#cc9900",
 	friendly_hl: "#4d3900",
+	examine_hl: "#005500",
+	fire_hl: "#669900",
 
     init: function() {
         this.display = new ROT.Display({width:this.width, 
@@ -101,6 +103,12 @@ var Game = {
 		this.map[catchCell[0]+","+catchCell[1]] = [{tile:"!", color:"#f7b", backcolor:"#000",
 				describe: function() {return "A catcher.";}}];
 		this.drawTile(catchCell[0], catchCell[1], false);
+
+		/* Weapon */
+		var weaponCell = this.getRandFreeCell(freeCells);
+		this.map[weaponCell[0]+","+weaponCell[1]] = [new Ability()];
+		this.drawTile(weaponCell[0], weaponCell[1], false);
+
 
 		/* Bot Generation based on level */
 		for (var i=0; i<10; i++) {
@@ -205,12 +213,24 @@ var Game = {
 	}
 };
 
+var Ability = function() {
+	this.name = "Grenade";
+	this.tile = ")";
+	this.color = "#80ffff";
+	this.backcolor = "#000000";
+	this.damage = 3;
+	this.describe = function() {
+		return this.name;
+	}
+}
+
 var Player = function(x, y, bot) {
     // this.x = x;
     // this.y = y;
 	this.scrap = 0;
 	this.catchers = 0;
 	this.botTeam = [bot];
+	this.abilities = [];
 	this.name = "You";
 	this.tile = "@";
 	this.color = "#ff0";
@@ -219,6 +239,16 @@ var Player = function(x, y, bot) {
 	this.examineX = x;
 	this.examineY = y;
 	this.describe = function() {return "";};
+    this.keyMap = {};
+    this.keyMap[75] = 0; // k
+    this.keyMap[85] = 1; // u
+    this.keyMap[76] = 2; // l
+    this.keyMap[78] = 3; // n
+    this.keyMap[74] = 4; // j
+    this.keyMap[66] = 5; // b
+    this.keyMap[72] = 6; // h
+    this.keyMap[89] = 7; // y
+
 }
 
 Player.prototype.gainScrap = function(s) {
@@ -259,26 +289,26 @@ Player.prototype.act = function() {
     window.addEventListener("keydown", this);
 }
 
-Player.prototype.handleEvent = function(e) {
-    var keyMap = {};
-    keyMap[75] = 0; // k
-    keyMap[85] = 1; // u
-    keyMap[76] = 2; // l
-    keyMap[78] = 3; // n
-    keyMap[74] = 4; // j
-    keyMap[66] = 5; // b
-    keyMap[72] = 6; // h
-    keyMap[89] = 7; // y
-
-
-    var code = e.keyCode;
-	// console.log("keycode: "+code);
-    var dir = ROT.DIRS[8][keyMap[code]];
-
-	if (code == 83) { // s = scrap
+Player.prototype.upgradeTopBot = function() {
 		if (this.scrap >= 10) {
 			Game.addMessage("you use 10 scrap to upgrade!!", "yellow");
-			this.botTeam[0].upgrade(this.botTeam[0].level + 1);
+			var curBot = this.botTeam[0];
+			var oldlvl = curBot.level;
+			var oldhp = curBot.hp;
+			var olddmg = curBot.damage;
+			curBot.upgrade(curBot.level + 1);
+			var newlvl = curBot.level;
+			var newhp = curBot.hp;
+			var newdmg = curBot.damage;
+			var msg = curBot.name + ": ";
+			Game.addMessage(msg + "Lv " + oldlvl + " -> " + newlvl, "yellow");
+			if (newhp > oldhp) {
+				Game.addMessage(msg + "HP " + oldhp + " -> " + newhp, "yellow");
+			}
+			if (newdmg > olddmg) {
+				Game.addMessage(msg + "Dmg " + olddmg + " -> " + newdmg, "yellow");
+			}
+			
 			this.scrap -= 10;
 			Game.drawStatus();
 		} else {
@@ -292,29 +322,11 @@ Player.prototype.handleEvent = function(e) {
 			// this.uiMode = "play";
 		// }
 		return;
-	}
+}
 
-	if (code == 88) { // x = examine
-		if (this.uiMode == "examine") {
-			this.uiMode = "play";
-		} else {
-			this.uiMode = "examine";
-		}
-		if (this.uiMode == "examine") {
-			this.examineX = this.botTeam[0].x;
-			this.examineY = this.botTeam[0].y;
-			Game.drawTile(this.examineX, this.examineY, "#005500");
-			//console.log("In examine mode.");
-		} else {
-			Game.drawTile(this.examineX, this.examineY, false);
-			//console.log("In play mode.");
-		}
-		return;
-	}
-
-	if (this.uiMode == "examine") {
+Player.prototype.targetMode = function(code, dir) {
 		/* one of vi directions? */
-		if (!(code in keyMap)) { return; }
+		if (!(code in this.keyMap)) { return; }
 		
 		var newX = this.examineX + dir[0];
 		var newY = this.examineY + dir[1];
@@ -328,10 +340,117 @@ Player.prototype.handleEvent = function(e) {
 		}
 
 		Game.drawTile(this.examineX, this.examineY, false);
-		Game.drawTile(newX, newY, "#005500");
+		Game.drawTile(newX, newY, Game.fire_hl);
 		this.examineX = newX;
 		this.examineY = newY;
 
+		return;
+}
+
+Player.prototype.handleEvent = function(e) {
+
+    var code = e.keyCode;
+	// console.log("keycode: "+code);
+	// BAD PLACE???
+    var dir = ROT.DIRS[8][this.keyMap[code]];
+
+	if (code == 83) { // s = scrap
+		this.upgradeTopBot();
+		return;
+	}
+
+	if (code == 27) { // esc = back to play mode
+		this.uiMode = "play";
+		Game.drawTile(this.examineX, this.examineY, false);
+		return;
+	}
+
+	if (code == 65) { // a = ability upgrade
+		if (this.scrap >= 30) {
+			a = this.abilities.pop();
+			this.botTeam[0].abilities.push(a);
+			Game.addMessage("Gave " + this.botTeam[0].name + " " + a.name + "!!!!",
+					"yellow");
+			this.scrap -= 30;
+		} else {
+			Game.addMessage("You need 30 scrap to attach that weapon.");
+		}
+		return;
+	}
+
+	if (code == 88) { // x = examine
+		if (this.uiMode == "examine") {
+			this.uiMode = "play";
+		} else {
+			this.uiMode = "examine";
+		}
+		if (this.uiMode == "examine") {
+			this.examineX = this.botTeam[0].x;
+			this.examineY = this.botTeam[0].y;
+			Game.drawTile(this.examineX, this.examineY, Game.examine_hl);
+			//console.log("In examine mode.");
+		} else {
+			Game.drawTile(this.examineX, this.examineY, false);
+			//console.log("In play mode.");
+		}
+		return;
+	}
+
+	if (this.uiMode == "examine") {
+		/* one of vi directions? */
+		if (!(code in this.keyMap)) { return; }
+		
+		var newX = this.examineX + dir[0];
+		var newY = this.examineY + dir[1];
+		var newKey = newX+","+newY
+
+		if (!(newKey in Game.map)) { return; }
+
+		var description = Game.map[newKey].slice(-1)[0].describe();
+		if (description) {
+			Game.addMessage(description);
+		}
+
+		Game.drawTile(this.examineX, this.examineY, false);
+		Game.drawTile(newX, newY, Game.examine_hl);
+		this.examineX = newX;
+		this.examineY = newY;
+
+		return;
+	}
+
+	if (code == 70) { // f = fire
+		if (this.uiMode == "fire") {
+			// add weapon info, Game.damage()
+			Game.addMessage("You fired!");
+			targetKey = this.examineX + "," + this.examineY;
+			if (Game.map[targetKey].length > 1) {
+				// bot at location
+				var bot = Game.map[targetKey].slice(-1)[0];
+				// fix
+				Game.damage(this, bot, this.abilities[0].damage);
+			}
+			this.uiMode = "play";
+			Game.drawTile(this.examineX, this.examineY, false);
+			window.removeEventListener("keydown", this);
+			Game.engine.unlock();
+			return;
+		} else {
+			if (this.botTeam[0].abilities.length < 1) {
+				Game.addMessage("This bot has nothing to fire.");
+				return;
+			}
+			this.uiMode = "fire";
+			Game.addMessage("f again to fire, Esc to cancel.");
+			this.examineX = this.botTeam[0].x;
+			this.examineY = this.botTeam[0].y;
+			Game.drawTile(this.examineX, this.examineY, Game.fire_hl);
+			return;
+		}
+	}
+
+	if (this.uiMode == "fire") {
+		this.targetMode(code, dir);
 		return;
 	}
 
@@ -354,7 +473,7 @@ Player.prototype.handleEvent = function(e) {
 		Game.engine.unlock();
 	}
     /* one of vi directions? */
-    if (!(code in keyMap)) { return; }
+    if (!(code in this.keyMap)) { return; }
 
     /* is there a free space? */
     var newX = this.botTeam[0].x + dir[0];
@@ -395,6 +514,12 @@ Player.prototype.handleEvent = function(e) {
 				Game.map[newKey][0] = {tile:".", color:"#fff", backcolor:"#000"};
 				this.catchers += 1;
 				Game.drawStatus();
+			} else if (Game.map[newKey][0].tile == ")") {
+				var a = Game.map[newKey][0];
+				// pickup ability
+				Game.map[newKey][0] = {tile:".", color:"#fff", backcolor:"#000"};
+				this.abilities.push(a);
+				Game.addMessage("Picked up " + a.name + ".  Press a to use.");
 			}
 			Game.map[this.botTeam[0].x+","+this.botTeam[0].y].pop();
 			Game.drawTile(this.botTeam[0].x, this.botTeam[0].y, false);
@@ -454,6 +579,7 @@ Player.prototype.die = function() {
  * scrap max value (?)
  */
 var Bot = function(x, y, name, symbol, color, scrap, wild, lvl, upgrade) {
+	this.abilities = [];
 	this.x = x;
 	this.y = y;
 	this.tile = symbol;
