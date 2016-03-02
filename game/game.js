@@ -34,6 +34,7 @@ var Game = {
 	maxBots: 3,
 	maxMsg: 5,
 	level: 1,
+	aggroRadius: 4,
 
 	player_hl: "#cc9900",
 	friendly_hl: "#4d3900",
@@ -86,7 +87,7 @@ var Game = {
 
 			this.map[cor[0]+","+cor[1]].push(this.player.botTeam[i]);
 			this.drawTile(cor[0], cor[1], false);
-			this.scheduler.add(this.player, true);
+			this.scheduler.add(this.player.botTeam[i], true);
 		}
 
 		this.drawStatus();
@@ -213,12 +214,19 @@ var Game = {
 	}
 };
 
+Game.distance = function(x0, y0, x1, y1) {
+	return Math.max(Math.abs(x0-x1), Math.abs(y0-y1));
+}
+
 var Ability = function() {
 	this.name = "Grenade";
 	this.tile = ")";
 	this.color = "#80ffff";
 	this.backcolor = "#000000";
 	this.damage = 3;
+	this.range = 3;
+	this.cooldown = 10;
+	this.cd_timer = 0;
 	this.describe = function() {
 		return this.name;
 	}
@@ -286,6 +294,17 @@ Player.prototype.loseBot = function(deadBot) {
 
 Player.prototype.act = function() {
     Game.engine.lock();
+	
+	// rotate team
+	this.rotateTeam();
+
+	// reduce cooldown timer for current bot
+	var curBot = this.botTeam[0];
+	for (var j =0; j < curBot.abilities.length; ++j) {
+		if (curBot.abilities[j].cd_timer > 0) {
+			curBot.abilities[j].cd_timer -= 1;
+		}
+	}
     window.addEventListener("keydown", this);
 }
 
@@ -294,11 +313,11 @@ Player.prototype.upgradeTopBot = function() {
 			Game.addMessage("you use 10 scrap to upgrade!!", "yellow");
 			var curBot = this.botTeam[0];
 			var oldlvl = curBot.level;
-			var oldhp = curBot.hp;
+			var oldhp = curBot.maxhp;
 			var olddmg = curBot.damage;
 			curBot.upgrade(curBot.level + 1);
 			var newlvl = curBot.level;
-			var newhp = curBot.hp;
+			var newhp = curBot.maxhp;
 			var newdmg = curBot.damage;
 			var msg = curBot.name + ": ";
 			Game.addMessage(msg + "Lv " + oldlvl + " -> " + newlvl, "yellow");
@@ -334,6 +353,14 @@ Player.prototype.targetMode = function(code, dir) {
 
 		if (!(newKey in Game.map)) { return; }
 
+		var curBot = this.botTeam[0];
+		var dist = Game.distance(curBot.x, curBot.y, newX, newY);
+		var maxRange = curBot.abilities[0].range;
+		if (dist > maxRange) {
+			Game.addMessage("Max range.");
+			return;
+		}
+
 		var description = Game.map[newKey].slice(-1)[0].describe();
 		if (description) {
 			Game.addMessage(description);
@@ -345,6 +372,34 @@ Player.prototype.targetMode = function(code, dir) {
 		this.examineY = newY;
 
 		return;
+}
+
+Player.prototype.rotateTeam = function() {
+	var t = this.botTeam.shift();
+	t.backcolor = Game.friendly_hl;
+	Game.drawTile(t.x, t.y, false);
+	this.botTeam.push(t);
+	this.botTeam[0].backcolor = Game.player_hl;
+	Game.drawStatus();
+	Game.drawTile(this.botTeam[0].x, this.botTeam[0].y, false);
+}
+
+Player.prototype.fireAbility = function() {
+	// add weapon info, Game.damage()
+	Game.addMessage("You fired!");
+	targetKey = this.examineX + "," + this.examineY;
+	if (Game.map[targetKey].length > 1) {
+		// bot at location
+		var enemy = Game.map[targetKey].slice(-1)[0];
+		var curAbility = this.botTeam[0].abilities[0];
+		// fix
+		Game.damage(this, enemy, curAbility.damage);
+		curAbility.cd_timer = curAbility.cooldown;
+	}
+	this.uiMode = "play";
+	Game.drawTile(this.examineX, this.examineY, false);
+	window.removeEventListener("keydown", this);
+	Game.engine.unlock();
 }
 
 Player.prototype.handleEvent = function(e) {
@@ -365,13 +420,26 @@ Player.prototype.handleEvent = function(e) {
 		return;
 	}
 
+	// if (code == 79) { // o = orders
+		// if (this.uiMode == "play") {
+			// this.uiMode = "orders: choose bot";
+			// Game.addMessage("Orders for bot 1, 2, or 3?", "green");
+			// return;
+		// } else {
+			// Game.addMessage("Can't order from mode " + this.uiMode);
+			// return;
+		// }
+	// }
+
 	if (code == 65) { // a = ability upgrade
 		if (this.scrap >= 30) {
 			a = this.abilities.pop();
 			this.botTeam[0].abilities.push(a);
-			Game.addMessage("Gave " + this.botTeam[0].name + " " + a.name + "!!!!",
+			Game.addMessage("Gave " + this.botTeam[0].name + " " + a.name + "!",
 					"yellow");
+			Game.addMessage("Press f to fire.", "yellow");
 			this.scrap -= 30;
+			Game.drawStatus();
 		} else {
 			Game.addMessage("You need 30 scrap to attach that weapon.");
 		}
@@ -421,23 +489,16 @@ Player.prototype.handleEvent = function(e) {
 
 	if (code == 70) { // f = fire
 		if (this.uiMode == "fire") {
-			// add weapon info, Game.damage()
-			Game.addMessage("You fired!");
-			targetKey = this.examineX + "," + this.examineY;
-			if (Game.map[targetKey].length > 1) {
-				// bot at location
-				var bot = Game.map[targetKey].slice(-1)[0];
-				// fix
-				Game.damage(this, bot, this.abilities[0].damage);
-			}
-			this.uiMode = "play";
-			Game.drawTile(this.examineX, this.examineY, false);
-			window.removeEventListener("keydown", this);
-			Game.engine.unlock();
+			this.fireAbility();
 			return;
 		} else {
 			if (this.botTeam[0].abilities.length < 1) {
 				Game.addMessage("This bot has nothing to fire.");
+				return;
+			}
+			var cd_timer = this.botTeam[0].abilities[0].cd_timer;
+			if (cd_timer > 0) {
+				Game.addMessage("Weapon on cooldown: " + cd_timer);
 				return;
 			}
 			this.uiMode = "fire";
@@ -461,17 +522,12 @@ Player.prototype.handleEvent = function(e) {
 	}
 
 
-	if (code == 82) { // r = rotate
-		var t = this.botTeam.shift();
-		t.backcolor = Game.friendly_hl;
-		Game.drawTile(t.x, t.y, false);
-		this.botTeam.push(t);
-		this.botTeam[0].backcolor = Game.player_hl;
-		Game.drawStatus();
-		Game.drawTile(this.botTeam[0].x, this.botTeam[0].y, false);
+	if (code == 82) { // r = rotate (essentially a pause now)
 		window.removeEventListener("keydown", this);
 		Game.engine.unlock();
+		return;
 	}
+
     /* one of vi directions? */
     if (!(code in this.keyMap)) { return; }
 
@@ -550,15 +606,10 @@ Player.prototype.capture = function(bot) {
 		bot.backcolor = Game.friendly_hl;
 		Game.drawTile(bot.x, bot.y, false);
 		this.botTeam.push(bot);
-		Game.addMessage("You captured the Lv " + bot.level + " " + bot.name + "!", "orange");
-		/* remove from map, remove from scheduler */
-		var success = Game.scheduler.remove(bot);  
-		var s2 = Game.scheduler.add(Game.player);
-		// remove youreself == infinite loop!!!!
-		// var key = bot.x+","+bot.y;
-		// Game.map[key].pop();
-		// Game.drawTile(bot.x, bot.y, false);
+		Game.addMessage("You captured the Lv " + bot.level + " " + bot.name + "!", 
+				"orange");
 		this.catchers -= 1;
+		this.captureMode = false;
 		Game.drawStatus();
 	}
 }
@@ -587,6 +638,7 @@ var Bot = function(x, y, name, symbol, color, scrap, wild, lvl, upgrade) {
 	this.color = color;
 	this.name = name;
 	this.wild = wild;
+	this.goal = "player";
 	this.upgrade = upgrade;
 	this.upgrade(lvl);
 }
@@ -596,8 +648,26 @@ Bot.prototype.describe = function() {
 }
 
 Bot.prototype.act = function() {
-	var x = Game.player.botTeam[0].x;
-	var y = Game.player.botTeam[0].y;
+	if (!this.wild) {
+		if (this.goal == "player") {
+			Game.player.act(); // could maybe pass bot here?
+		}
+		return;
+	}
+
+	var mindist = 64; // a big number
+	var botIndex = -1;
+	for (var i=0; i < Game.player.botTeam.length; ++i) {
+		var b = Game.player.botTeam[i]
+		var d = Game.distance(this.x, this.y, b.x, b.y)
+		if (mindist > d)  {
+			mindist = d;
+			botIndex = i;
+		}
+	}
+
+	var x = Game.player.botTeam[botIndex].x;
+	var y = Game.player.botTeam[botIndex].y;
 	var passableCallback = function(x, y) {
 		return (x+","+y in Game.map);
 	}
@@ -612,16 +682,15 @@ Bot.prototype.act = function() {
 	path.shift(); /* remove bot's position from the path list */
 
 	if (path.length == 1) {
-		Game.damage(this, Game.player.botTeam[0], this.damage);
+		Game.damage(this, Game.player.botTeam[botIndex], this.damage);
 		Game.drawStatus();
 	} else {
 		x = path[0][0];
 		y = path[0][1];
-		// check for lizard
+		// check for bot at location
 		var oldKey = this.x+","+this.y;
 		var newKey = x+","+y;
-		// path.length > 4 : too far away to chase, randomly move
-		if (path.length > 4 || Game.map[newKey].length > 1) { // something is there
+		if (mindist > Game.aggroRadius || Game.map[newKey].length > 1) { 
 			// try a  random coordinate
 			x = this.x + Math.round(ROT.RNG.getUniform() * 3 - 1);
 			y = this.y + Math.round(ROT.RNG.getUniform() * 3 - 1);
