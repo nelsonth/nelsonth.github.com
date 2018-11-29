@@ -14,9 +14,9 @@ computer science pedagogy.
 I'm currently teaching for the post-baccalaurate program.  I teach:
 
 - [CSCI 2270: Data Structures](https://catalog.colorado.edu/search/?search=CSCI+2270)
-- [CSCI 2400: Data Structures](https://catalog.colorado.edu/search/?search=CSCI+2400)
-- [CSCI 3308: Data Structures](https://catalog.colorado.edu/search/?search=CSCI+3308)
-- [CSCI 3155: Data Structures](https://catalog.colorado.edu/search/?search=CSCI+3155)
+- [CSCI 2400: Computer Systems](https://catalog.colorado.edu/search/?search=CSCI+2400)
+- [CSCI 3308: Software Development Tools and  Methods](https://catalog.colorado.edu/search/?search=CSCI+3308)
+- [CSCI 3155: Principles and Practice of Programming Languages](https://catalog.colorado.edu/search/?search=CSCI+3155)
 
 
 ## Education
